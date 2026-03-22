@@ -189,6 +189,68 @@ def _call_llm(prompt: str) -> str:
     return backend(prompt)
 
 
+# ---------------------------------------------------------------------------
+# Plain-text LLM (no JSON mode) — used for Q&A over scraped context
+# ---------------------------------------------------------------------------
+
+
+def _call_ollama_text(prompt: str) -> str:
+    client = _get_http_client()
+    response = client.post(
+        f"{OLLAMA_URL}/api/generate",
+        json={
+            "model": LLM_MODEL,
+            "prompt": prompt,
+            "stream": False,
+        },
+    )
+    response.raise_for_status()
+    return (response.json().get("response") or "").strip()
+
+
+def _call_gemini_text(prompt: str) -> str:
+    client = _get_http_client()
+    response = client.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def _call_openai_text(prompt: str) -> str:
+    client = _get_http_client()
+    response = client.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        json={
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.5,
+        },
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
+
+
+_LLM_TEXT_BACKENDS = {
+    "ollama": _call_ollama_text,
+    "gemini": _call_gemini_text,
+    "openai": _call_openai_text,
+}
+
+
+def _call_llm_text(prompt: str) -> str:
+    backend = _LLM_TEXT_BACKENDS.get(LLM_PROVIDER)
+    if backend is None:
+        raise ValueError(
+            f"Unknown LLM provider '{LLM_PROVIDER}'. "
+            f"Supported: {list(_LLM_TEXT_BACKENDS.keys())}"
+        )
+    return backend(prompt)
+
+
 def _parse_llm_response(raw: str) -> dict[str, Any]:
     """Parse the LLM's JSON response, handling common formatting issues."""
     # Try direct JSON parse
@@ -347,3 +409,95 @@ def enrich_batch(items: list[ListingItem]) -> list[EnrichedItem]:
 
     logger.info("Enrichment complete: %d items processed", len(enriched))
     return enriched
+
+
+def answer_question_from_scraped_data(
+    question: str,
+    enriched_items: list[EnrichedItem],
+    *,
+    max_chars: int = 14000,
+) -> tuple[str, int]:
+    """Answer a user question using only scraped listing text (and LLM summaries).
+
+    Returns:
+        (answer_text, number of listings included in the prompt context)
+    """
+    if not question.strip():
+        return ("Please provide a question.", 0)
+
+    snippets: list[str] = []
+    total = 0
+    used = 0
+
+    for i, item in enumerate(enriched_items, start=1):
+        block_parts = [f"### Listing {i}"]
+        if item.summary:
+            block_parts.append(f"Summary: {item.summary}")
+        if item.entities:
+            block_parts.append("Entities: " + ", ".join(item.entities))
+        for key, value in item.original.data.items():
+            if isinstance(value, str) and value.strip():
+                block_parts.append(f"{key}: {value.strip()}")
+            elif isinstance(value, list) and value:
+                block_parts.append(f"{key}: " + ", ".join(str(x) for x in value))
+        if item.original.source_url:
+            block_parts.append(f"URL: {item.original.source_url}")
+        block = "\n".join(block_parts)
+        if snippets and total + len(block) > max_chars:
+            break
+        snippets.append(block)
+        total += len(block)
+        used += 1
+
+    if not snippets:
+        return (
+            "No listing text was scraped, so there is nothing to answer from. "
+            "Check the site config selectors or try another page URL.",
+            0,
+        )
+
+    context = "\n\n".join(snippets)
+    prompt = (
+        "You are a helpful assistant. The user asked a question about data just "
+        "scraped from a website.\n\n"
+        "Use ONLY the following scraped listings (summaries and fields) to answer. "
+        "If the data does not contain the answer, say so clearly. Be concise; "
+        "mention listing numbers when citing evidence.\n\n"
+        f"--- Scraped data ---\n{context}\n--- End ---\n\n"
+        f"User question: {question.strip()}\n\nYour answer:"
+    )
+
+    try:
+        answer = _call_llm_text(prompt)
+        return (answer or "(empty model response)", used)
+    except Exception as e:
+        logger.error("answer_question_from_scraped_data failed: %s", e)
+        return (
+            f"I could not generate an answer ({e}). "
+            f"{used} listing(s) were scraped — check LLM provider settings in .env.",
+            used,
+        )
+
+
+def answer_question_from_listings(
+    question: str,
+    items: list[ListingItem],
+    *,
+    max_chars: int = 14000,
+) -> tuple[str, int]:
+    """Answer from raw listings when AI enrichment was disabled."""
+    if not question.strip():
+        return ("Please provide a question.", 0)
+
+    fake_enriched: list[EnrichedItem] = []
+    for li in items:
+        fake_enriched.append(
+            EnrichedItem(
+                original=li,
+                sentiment="neutral",
+                entities=[],
+                summary="",
+                embedding=[],
+            )
+        )
+    return answer_question_from_scraped_data(question, fake_enriched, max_chars=max_chars)

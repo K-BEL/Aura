@@ -8,8 +8,8 @@ import { PROVIDERS, MODELS } from '../config/models'
 import { useMarketSearch } from '../hooks/useMarketSearch'
 import { 
   Settings, Mic, MicOff, MessageSquare, Image as ImageIcon, Paperclip, 
-  Send, User, Bot, Zap, Code, FileText, Lightbulb, Pause, Menu, Loader2, X,
-  Search, Database, TrendingUp, Download
+  Send, User, Bot, Code, FileText, Pause, Menu, Loader2, X,
+  Search, Database, Globe
 } from 'lucide-react'
 
 // Provider accent colors (minimal — only used for a tiny dot indicator)
@@ -27,12 +27,27 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
   const [showMarketUI, setShowMarketUI] = useState(false)
   
   // Aura Market Search hook
-  const { search, isSearching, searchResults, triggerScrape, isScraping, scrapeStatus } = useMarketSearch()
-  
-  const { 
-    messages, sendMessage, loadMessages, isLoading,
-    activeProvider, setActiveProvider,
-    activeModel, setActiveModel 
+  const {
+    search,
+    isSearching,
+    searchResults,
+    triggerScrape,
+    isScraping,
+    scrapeStatus,
+    scrapeAndAnswer,
+    isScrapeAnswering,
+  } = useMarketSearch()
+
+  const {
+    messages,
+    sendMessage,
+    appendMessage,
+    loadMessages,
+    isLoading,
+    activeProvider,
+    setActiveProvider,
+    activeModel,
+    setActiveModel,
   } = useChatModel('groq', 'llama-3.3-70b-versatile', {
     initialMessages: activeConversation?.messages || [],
     onMessagesChange,
@@ -115,7 +130,7 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if ((input.trim() || attachedFiles.length) && !isLoading && !isSearching && !isScraping) {
+    if ((input.trim() || attachedFiles.length) && !isLoading && !isSearching && !isScraping && !isScrapeAnswering) {
       stop()
       // Auto-create conversation on first message
       if (!activeConversation) {
@@ -128,7 +143,7 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
       if (userText.startsWith('Search market:')) {
         const query = userText.replace('Search market:', '').trim()
         if (query) {
-          sendMessage(`*Searching market data for:* "${query}"`)
+          await sendMessage(`*Searching market data for:* "${query}"`, { skipCompletion: true })
           setInput('')
           await search(query)
           return
@@ -136,11 +151,49 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
       } else if (userText.startsWith('Scrape config:')) {
         const configName = userText.replace('Scrape config:', '').trim()
         if (configName) {
-           sendMessage(`*Triggering scrape job for config:* \`${configName}\``)
-           setInput('')
-           await triggerScrape(configName)
-           return
+          await sendMessage(`*Triggering scrape job for config:* \`${configName}\``, { skipCompletion: true })
+          setInput('')
+          await triggerScrape(configName)
+          return
         }
+      } else if (/^Ask site:/i.test(userText)) {
+        const rest = userText.replace(/^Ask site:\s*/i, '').trim()
+        const pipeIdx = rest.indexOf('|')
+        if (pipeIdx === -1 || !rest.slice(0, pipeIdx).trim() || !rest.slice(pipeIdx + 1).trim()) {
+          appendMessage({
+            role: 'assistant',
+            content:
+              'Use **Ask site:** like this:\n\n`Ask site: example_site | What themes do these quotes explore?`\n\nReplace `example_site` with your YAML config name (file name without `.yaml`).',
+          })
+          setInput('')
+          return
+        }
+        const configName = rest.slice(0, pipeIdx).trim()
+        const question = rest.slice(pipeIdx + 1).trim()
+        if (!activeConversation) {
+          onFirstMessage()
+        }
+        await sendMessage(
+          `**${question}**\n\n_(fresh scrape, config \`${configName}\`)_`,
+          { skipCompletion: true },
+        )
+        setInput('')
+        clearFiles()
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto'
+        }
+        try {
+          const data = await scrapeAndAnswer(configName, question)
+          if (data?.answer) {
+            appendMessage({ role: 'assistant', content: data.answer })
+          }
+        } catch (err) {
+          appendMessage({
+            role: 'assistant',
+            content: `❌ **Scrape & answer failed:** ${err.message}`,
+          })
+        }
+        return
       }
 
       // Prepend file context if files are attached
@@ -182,8 +235,8 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
 
   const quickStartCards = [
     { icon: <Search className="w-5 h-5"/>, title: "Market Search", desc: "Find listings & trends", action: "Search market: " },
+    { icon: <Globe className="w-5 h-5"/>, title: "Ask a site", desc: "Scrape, then answer from that page", action: "Ask site: example_site | " },
     { icon: <Database className="w-5 h-5"/>, title: "Scrape Site", desc: "Trigger data extraction", action: "Scrape config: " },
-    { icon: <TrendingUp className="w-5 h-5"/>, title: "Analyze Sentiment", desc: "Market mood analysis", action: "Analyze sentiment for: " },
     { icon: <Code className="w-5 h-5"/>, title: "Chat", desc: "Standard AI assistant", action: "I need help with: " },
   ]
 
@@ -281,7 +334,7 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
             </h2>
             <p className="text-white/25 text-sm mb-12">Start typing or pick an option below.</p>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
               {quickStartCards.map((card, i) => (
                 <button 
                   key={i} 
@@ -404,6 +457,21 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
               </div>
             )}
 
+            {/* Scrape then answer (in progress) */}
+            {isScrapeAnswering && (
+              <div className="flex w-full justify-start message-enter">
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mr-3 mt-1" style={{ background: 'rgba(96,165,250,0.12)' }}>
+                  <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+                </div>
+                <div className="flex-1 max-w-[92%]">
+                  <div className="text-sm font-medium text-sky-400/90 mt-1">
+                    Scraping the configured site and building an answer from fresh data…
+                  </div>
+                  <div className="text-xs text-white/35 mt-1">This uses your Aura LLM (e.g. Ollama) on the API host, not the chat model above.</div>
+                </div>
+              </div>
+            )}
+
             {/* Aura Scrape Status */}
             {(isScraping || scrapeStatus) && (
               <div className="flex w-full justify-start message-enter">
@@ -489,7 +557,7 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
                     handleSubmit(e)
                   }
                 }}
-                disabled={isLoading}
+                disabled={isLoading || isScrapeAnswering}
                 rows={1}
               />
             </div>
@@ -546,9 +614,9 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
               </button>
               <button
                 type="submit"
-                disabled={(!input.trim() && !attachedFiles.length) || isLoading}
+                disabled={(!input.trim() && !attachedFiles.length) || isLoading || isScrapeAnswering}
                 className={`p-2.5 rounded-full transition-all duration-300 ease-in-out ${
-                  (!input.trim() && !attachedFiles.length) || isLoading
+                  (!input.trim() && !attachedFiles.length) || isLoading || isScrapeAnswering
                     ? 'text-white/15 cursor-not-allowed' 
                     : 'bg-white text-black hover:bg-white/90 shadow-lg shadow-white/10'
                 }`}

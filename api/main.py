@@ -23,6 +23,7 @@ if str(SCRAPER_SRC) not in sys.path:
     sys.path.insert(0, str(SCRAPER_SRC))
 
 from api.routes.scrape import router as scrape_router
+from api.routes.scrape_answer import router as scrape_answer_router
 from api.routes.search import router as search_router
 
 logger = logging.getLogger("aura.api")
@@ -66,6 +67,7 @@ app.add_middleware(
 
 # Mount routers
 app.include_router(scrape_router, prefix="/api")
+app.include_router(scrape_answer_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PROVIDERS, MODELS } from '../config/models';
 
-export function useChatModel(initialProvider = 'groq', initialModel = 'llama-3.3-70b-versatile', { initialMessages = [], onMessagesChange } = {}) {
+export function useChatModel(initialProvider = 'local', initialModel = 'qwen2.5-coder:7b', { initialMessages = [], onMessagesChange } = {}) {
   const [messages, setMessages] = useState(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -22,9 +22,14 @@ export function useChatModel(initialProvider = 'groq', initialModel = 'llama-3.3
     setMessages(newMessages);
   };
 
-  const sendMessage = async (userMessage) => {
+  const appendMessage = (message) => {
+    setMessages(prev => [...prev, message]);
+  };
+
+  const sendMessage = async (userMessage, { skipCompletion = false } = {}) => {
     const userMsg = { role: 'user', content: userMessage };
     setMessages(prev => [...prev, userMsg]);
+    if (skipCompletion) return;
     setIsLoading(true);
 
     try {
@@ -119,6 +124,7 @@ export function useChatModel(initialProvider = 'groq', initialModel = 'llama-3.3
   return {
     messages,
     sendMessage,
+    appendMessage,
     loadMessages,
     isLoading,
     activeProvider,

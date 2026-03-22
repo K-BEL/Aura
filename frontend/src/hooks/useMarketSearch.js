@@ -15,6 +15,8 @@ export function useMarketSearch() {
   const [isScraping, setIsScraping] = useState(false);
   const [scrapeError, setScrapeError] = useState(null);
 
+  const [isScrapeAnswering, setIsScrapeAnswering] = useState(false);
+
   /**
    * Perform hybrid search over enriched market data.
    */
@@ -91,6 +93,45 @@ export function useMarketSearch() {
   }, []);
 
   /**
+   * Scrape a configured site, then get an LLM answer grounded in that fresh data.
+   */
+  const scrapeAndAnswer = useCallback(async (configName, question, options = {}) => {
+    setIsScrapeAnswering(true);
+    setScrapeError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/scrape-and-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config_name: configName,
+          question,
+          url: options.url || null,
+          max_pages: options.maxPages || 3,
+          ai_enrich: options.aiEnrich !== false,
+          index: options.index === true,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = data.detail;
+        const msg =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d) => d.msg || JSON.stringify(d)).join('; ')
+              : `Request failed: ${response.status}`;
+        throw new Error(msg);
+      }
+
+      return data;
+    } finally {
+      setIsScrapeAnswering(false);
+    }
+  }, []);
+
+  /**
    * Get available site configurations.
    */
   const getConfigs = useCallback(async () => {
@@ -129,6 +170,9 @@ export function useMarketSearch() {
     scrapeStatus,
     isScraping,
     scrapeError,
+
+    scrapeAndAnswer,
+    isScrapeAnswering,
 
     // Utilities
     getConfigs,

@@ -13,7 +13,7 @@ The Aura monorepo consists of four main components:
 1. **`scraper/` (OmniScraper Core)**
    A configuration-driven web scraping framework built on `scrapling`. It features an advanced AI backend (`ai_processor.py`) that uses LLMs to extract sentiment, entities, and summaries from raw scraped text, while generating 384-dimensional multilingual embeddings.
 2. **`api/` (Aura API Bridge)**
-   A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs and execute hybrid searches.
+   A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs, run **scrape-then-answer** (fresh data + LLM reply), and execute hybrid searches.
 3. **`frontend/` (AI Chat Application)**
    A React/Vite application that provides a ChatGPT-like interface. Users can search the market intelligence database in natural language or trigger new scrapes via Quick Start cards (`ChatBox.jsx`).
 4. **Elasticsearch & Kibana**
@@ -58,6 +58,9 @@ source .venv/bin/activate
 pip install -e ".[dev,ai]"
 cd ..
 
+# Install API Bridge dependencies
+pip install -r api/requirements.txt
+
 # Start the FastAPI Bridge
 uvicorn api.main:app --reload --port 8000
 ```
@@ -84,6 +87,41 @@ npm run dev
 2. Under "How can I help you?", click **Market Search** to query existing data (e.g., "Find positive reviews for MacBook Pro in Casablanca").
 3. Click **Scrape Site** to trigger a new extraction job using one of the existing YAML configurations.
 4. The backend will scrape the data, pass it through the local LLM for sentiment/entity extraction, generate vector embeddings, and index it into Elasticsearch automatically.
+5. Click **Ask a site** or type a command (see below) to scrape a configured site **once** and get an answer grounded in that fresh data—without relying on data already in Elasticsearch.
+
+### Ask a site (scrape, then answer)
+
+Use this when you want a natural-language answer **only from what was just scraped** from a target you define in YAML (under `scraper/configs/`).
+
+**In the chat box**, use this pattern (config name = YAML filename without `.yaml`):
+
+```text
+Ask site: example_site | Which authors appear in these quotes?
+```
+
+- **Left of `|`:** the site config name (e.g. `example_site` for `example_site.yaml`).
+- **Right of `|`:** your question.
+
+The UI shows a short loading state, then appends the assistant reply.
+
+**Important:** The answer step uses the **LLM configured for the API / scraper** (`AURA_LLM_PROVIDER`, `AURA_LLM_MODEL` in `.env`—typically Ollama on the machine running `uvicorn`). It does **not** use the chat provider/model selected in the frontend settings (e.g. Groq).
+
+By default this flow does **not** index into Elasticsearch (faster interactive use). To index as well, call the API with `"index": true` (see below).
+
+**API (optional):** `POST /api/scrape-and-answer` with JSON body:
+
+```json
+{
+  "config_name": "example_site",
+  "question": "Summarize the main themes.",
+  "url": null,
+  "max_pages": 3,
+  "ai_enrich": true,
+  "index": false
+}
+```
+
+Response includes `answer`, `items_scraped`, `listings_used_for_answer`, and counts for enrichment/indexing.
 
 ### Using the CLI Directly
 
