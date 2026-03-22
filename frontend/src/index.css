@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #050505;
+    color: #e5e5e5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+    height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.3);
+  }
+}
+
+@layer utilities {
+  /* Glass panel — darker, more subtle for Gemini aesthetic */
+  .glass-panel {
+    background: rgba(15, 15, 15, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Sidebar panel — solid dark, no glass */
+  .sidebar-panel {
+    background: #0f0f0f;
+  }
+
+  /* Input pill glow — pulsing blue→purple on focus */
+  .gemini-input-focus:focus-within {
+    animation: gemini-glow 2.5s ease-in-out infinite;
+    box-shadow: 0 0 0 1.5px transparent;
+  }
+
+  /* Shimmer for AI loading state */
+  .gemini-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 9999px;
+  }
+  .gemini-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(139, 92, 246, 0.25) 30%,
+      rgba(59, 130, 246, 0.35) 50%,
+      rgba(139, 92, 246, 0.25) 70%,
+      transparent 100%
+    );
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Base resets */
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+/* Gemini glow — animates border between blue and purple */
+@keyframes gemini-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 1.5px rgba(139, 92, 246, 0.5), 0 0 20px rgba(139, 92, 246, 0.12);
+  }
+}
+
+/* Shimmer sweep */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Smooth fade-in for messages */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.message-enter {
+  animation: fadeUp 0.3s ease-out forwards;
+}

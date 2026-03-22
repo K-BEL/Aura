@@ -1,0 +1,33 @@
+# OmniScraper — Example Site Config
+# This uses quotes.toscrape.com as a safe, public demo target.
+# Copy this file and modify selectors to match your target site.
+
+name: "quotes_demo"
+base_url: "https://quotes.toscrape.com"
+fetcher: "basic"
+headless: true
+
+# URL template (optional — used by the URL builder)
+url_template:
+  pattern: "{base_url}/page/{page}/"
+
+# CSS selector for each individual listing/item on the page
+listing_container: ".quote"
+
+# Field extraction — each key is a column in your output
+fields:
+  text:
+    selector: ".text::text"
+  author:
+    selector: ".author::text"
+  tags:
+    selector: ".tag::text"
+    multiple: true
+
+# Pagination
+pagination:
+  next_page: ".next a::attr(href)"
+  max_pages: 3
+
+# Delay between pages (seconds) — be polite!
+delay: 1.5
