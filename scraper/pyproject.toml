@@ -30,6 +30,7 @@ dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "rich>=13.0",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +41,8 @@ dev = [
 ai = [
     "sentence-transformers>=2.2",
     "httpx>=0.24",
-    "elasticsearch[async]>=8.0",
+    # Keep client 8.x with server 8.x (docker-compose). elasticsearch-py 9 targets ES 9 API and breaks against 8.12.
+    "elasticsearch[async]>=8.0,<9",
 ]
 
 [project.scripts]

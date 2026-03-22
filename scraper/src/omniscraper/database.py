@@ -102,7 +102,11 @@ def create_index(index_name: str | None = None) -> None:
         logger.info("Index '%s' already exists — skipping creation", index_name)
         return
 
-    es.indices.create(index=index_name, body=INDEX_MAPPING)
+    es.indices.create(
+        index=index_name,
+        settings=INDEX_MAPPING["settings"],
+        mappings=INDEX_MAPPING["mappings"],
+    )
     logger.info("Created index '%s' with hybrid search mapping", index_name)
 
 

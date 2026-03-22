@@ -13,7 +13,7 @@ The Aura monorepo consists of four main components:
 1. **`scraper/` (OmniScraper Core)**
    A configuration-driven web scraping framework built on `scrapling`. It features an advanced AI backend (`ai_processor.py`) that uses LLMs to extract sentiment, entities, and summaries from raw scraped text, while generating 384-dimensional multilingual embeddings.
 2. **`api/` (Aura API Bridge)**
-   A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs, run **scrape-then-answer** (fresh data + LLM reply), and execute hybrid searches.
+   A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs, run **scrape-then-answer** (fresh data + LLM reply), and execute hybrid searches. It loads `.env` from the project root automatically via `python-dotenv`.
 3. **`frontend/` (AI Chat Application)**
    A React/Vite application that provides a ChatGPT-like interface. Users can search the market intelligence database in natural language or trigger new scrapes via Quick Start cards (`ChatBox.jsx`).
 4. **Elasticsearch & Kibana**
@@ -28,15 +28,21 @@ The Aura monorepo consists of four main components:
 - Python 3.10+
 - Node.js 18+
 - Docker & Docker Compose
-- Ollama (running locally with your chosen model, e.g., `llama3`)
+- Ollama (running locally with a model that fits in your RAM — e.g. `qwen2.5:1.5b` for 8 GB machines, `llama3` for 16+ GB)
 
 ### 2. Environment Setup
 
-Copy the example environment file and fill in your API keys (optional if using local models):
+Copy the example environment files and fill in your API keys (optional if using local models):
 
 ```bash
+# Project-root .env (backend: LLM, Elasticsearch, API settings)
 cp .env.example .env
+
+# Frontend .env (chat provider API keys)
+cp frontend/.env.example frontend/.env
 ```
+
+Both the API bridge and the CLI auto-load `.env` from the project root via `python-dotenv`. The frontend uses Vite's built-in `.env` loading (`VITE_*` variables only).
 
 ### 3. Start Elasticsearch (Database)
 
@@ -45,6 +51,7 @@ Start the local Elasticsearch 8.x and Kibana cluster. This is required for index
 ```bash
 docker compose up -d
 ```
+
 *Kibana will be available at [http://localhost:5601](http://localhost:5601).*
 
 ### 4. Setup the Backend (Scraper & API)
@@ -64,6 +71,7 @@ pip install -r api/requirements.txt
 # Start the FastAPI Bridge
 uvicorn api.main:app --reload --port 8000
 ```
+
 *The API Bridge will be available at [http://localhost:8000](http://localhost:8000).*
 
 ### 5. Setup the Frontend (Chat UI)
@@ -75,6 +83,7 @@ cd frontend
 npm install
 npm run dev
 ```
+
 *The Chat interface will be available at [http://localhost:5173](http://localhost:5173).*
 
 ---
@@ -142,17 +151,22 @@ omniscraper scrape my_target_site --ai-enrich --index
 ## 🧠 The AI Enrichment Pipeline
 
 The pipeline (`ai_processor.py`) intercepts raw scraped `ListingItem` objects and generates `EnrichedItem` objects by:
+
 1. Contacting an LLM (Ollama, Gemini, or OpenAI) to perform a zero-shot extraction of sentiment, entities, and summaries.
 2. Generating a 384-dimension text embedding using `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`. This model is multilingual, natively supporting English, French, and Arabic.
 3. Pushing the `EnrichedItem` to Elasticsearch (`database.py`) if the `--index` flag is active.
 
 ### LLM Configuration
+
 Edit your `.env` file to change the provider:
+
 ```env
 # Supported: ollama, gemini, openai
 AURA_LLM_PROVIDER=ollama
-AURA_LLM_MODEL=llama3
+AURA_LLM_MODEL=qwen2.5:1.5b
 ```
+
+Make sure the model is pulled locally: `ollama pull qwen2.5:1.5b`
 
 ---
 
@@ -165,3 +179,4 @@ cd scraper
 source .venv/bin/activate
 pytest tests/test_ai_processor.py tests/test_database.py -v
 ```
+

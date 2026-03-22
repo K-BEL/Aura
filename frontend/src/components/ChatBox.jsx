@@ -24,7 +24,7 @@ function ChatBox({ mode, onModeChange, activeConversation, onMessagesChange, onF
   const [input, setInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [localModels, setLocalModels] = useState(MODELS.local || [])
-  const [showMarketUI, setShowMarketUI] = useState(false)
+  const [showMarketUI, setShowMarketUI] = useState(false) // eslint-disable-line no-unused-vars
   
   // Aura Market Search hook
   const {

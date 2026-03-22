@@ -47,6 +47,7 @@ ENV/
 
 # Scraper specific
 output/
+configs/
 *.csv
 *.jsonl
 crawl_data/

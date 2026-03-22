@@ -8,6 +8,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+try:
+    from dotenv import load_dotenv
+    # Walk up to project root to find .env (handles running from scraper/ or project root)
+    _here = Path.cwd()
+    for _candidate in [_here / ".env", _here.parent / ".env"]:
+        if _candidate.exists():
+            load_dotenv(_candidate)
+            break
+except ImportError:
+    pass
+
 import typer
 from rich.console import Console
 from rich.logging import RichHandler

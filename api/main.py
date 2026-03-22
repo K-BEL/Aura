@@ -14,8 +14,13 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Load .env from project root (two levels up from api/main.py)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 
 # Add scraper package to path
 SCRAPER_SRC = Path(__file__).resolve().parent.parent / "scraper" / "src"
