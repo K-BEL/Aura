@@ -37,7 +37,7 @@ class ScrapeAndAnswerResponse(BaseModel):
 
 
 @router.post("/scrape-and-answer", response_model=ScrapeAndAnswerResponse)
-async def scrape_and_answer(request: ScrapeAndAnswerRequest):
+def scrape_and_answer(request: ScrapeAndAnswerRequest):
     """Scrape the site defined by config, then answer ``question`` from that data."""
     try:
         from omniscraper.models import SiteConfig

@@ -10,14 +10,14 @@ It combines a robust Python scraping engine (**OmniScraper**) with a sleek React
 
 The Aura monorepo consists of four main components:
 
-1. **`scraper/` (OmniScraper Core)**
-   A configuration-driven web scraping framework built on `scrapling`. It features an advanced AI backend (`ai_processor.py`) that uses LLMs to extract sentiment, entities, and summaries from raw scraped text, while generating 384-dimensional multilingual embeddings.
-2. **`api/` (Aura API Bridge)**
-   A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs, run **scrape-then-answer** (fresh data + LLM reply), and execute hybrid searches. It loads `.env` from the project root automatically via `python-dotenv`.
-3. **`frontend/` (AI Chat Application)**
-   A React/Vite application that provides a ChatGPT-like interface. Users can search the market intelligence database in natural language or trigger new scrapes via Quick Start cards (`ChatBox.jsx`).
+1. `**scraper/` (OmniScraper Core)**
+  A configuration-driven web scraping framework built on `scrapling`. It features an advanced AI backend (`ai_processor.py`) that uses LLMs to extract sentiment, entities, and summaries from raw scraped text, while generating 384-dimensional multilingual embeddings.
+2. `**api/` (Aura API Bridge)**
+  A lightweight FastAPI server (`main.py`) that sits between the frontend and the scraper. It exposes endpoints to trigger scrape jobs, run **scrape-then-answer** (fresh data + LLM reply), and execute hybrid searches. It loads `.env` from the project root automatically via `python-dotenv`.
+3. `**frontend/` (AI Chat Application)**
+  A React/Vite application that provides a ChatGPT-like interface. Users can search the market intelligence database in natural language or trigger new scrapes via Quick Start cards (`ChatBox.jsx`).
 4. **Elasticsearch & Kibana**
-   A local cluster (managed via Docker Compose) that provides the `aura-market-data` index. It supports **Hybrid Search**, combining semantic vector similarity (kNN) with keyword matching (BM25).
+  A local cluster (managed via Docker Compose) that provides the `aura-market-data` index. It supports **Hybrid Search**, combining semantic vector similarity (kNN) with keyword matching (BM25).
 
 ---
 
@@ -56,19 +56,23 @@ docker compose up -d
 
 ### 4. Setup the Backend (Scraper & API)
 
-Create a Python virtual environment and install the required dependencies (including the `ai` optional group):
+**Use a virtual environment.** On macOS with Homebrew Python, `pip install` on the system interpreter fails with `externally-managed-environment` (PEP 668). Always `source` a venv before `pip` or `uvicorn`.
+
+Create the scraper venv once, then install OmniScraper + API deps:
 
 ```bash
 cd scraper
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev,ai]"
 cd ..
+```
 
-# Install API Bridge dependencies
+**Next time** (new terminal), from the project root:
+
+```bash
+source scraper/.venv/bin/activate
 pip install -r api/requirements.txt
-
-# Start the FastAPI Bridge
 uvicorn api.main:app --reload --port 8000
 ```
 

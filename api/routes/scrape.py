@@ -42,7 +42,7 @@ class ScrapeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/scrape", response_model=ScrapeResponse)
-async def trigger_scrape(request: ScrapeRequest):
+def trigger_scrape(request: ScrapeRequest):
     """Trigger a scrape job with optional AI enrichment and indexing."""
     try:
         from omniscraper.models import SiteConfig
